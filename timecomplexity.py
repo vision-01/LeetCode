@@ -1,34 +1,51 @@
-import time
-import numpy as np
-from scipy.optimize import curve_fit
+import ast
+import sys
 
-def measure_time(func, *args, **kwargs):
-    start_time = time.time()
-    func(*args, **kwargs)
-    end_time = time.time()
-    return end_time - start_time
+class ComplexityAnalyzer(ast.NodeVisitor):
+    def __init__(self):
+        self.time_complexity = 'O(1)'
+        self.loop_nesting = 0
+        self.max_loop_nesting = 0
 
-def estimate_time_complexity(func, input_generator, sizes, *args, **kwargs):
-    times = []
-    for size in sizes:
-        input_data = input_generator(size)
-        exec_time = measure_time(func, input_data, *args, **kwargs)
-        times.append(exec_time)
-    
-    def complexity_model(n, a, b):
-        return a * np.log(n) + b
-    
-    params, _ = curve_fit(complexity_model, sizes, times)
-    return params
+    def visit_FunctionDef(self, node):
+        # Analyze the function body
+        self.generic_visit(node)
 
-# Example usage:
-if __name__ == "__main__":
-    def example_function(data):
-        return sorted(data)
+    def visit_For(self, node):
+        # Entering a for loop
+        self.loop_nesting += 1
+        self.max_loop_nesting = max(self.max_loop_nesting, self.loop_nesting)
+        self.generic_visit(node)
+        # Exiting the for loop
+        self.loop_nesting -= 1
 
-    def input_generator(size):
-        return list(range(size, 0, -1))
+    def visit_While(self, node):
+        # Entering a while loop
+        self.loop_nesting += 1
+        self.max_loop_nesting = max(self.max_loop_nesting, self.loop_nesting)
+        self.generic_visit(node)
+        # Exiting the while loop
+        self.loop_nesting -= 1
 
-    sizes = [10, 100, 1000, 10000]
-    params = estimate_time_complexity(example_function, input_generator, sizes)
-    print(f"Estimated time complexity: O(log(n)) with parameters: {params}")
+    def report(self):
+        if self.max_loop_nesting == 0:
+            self.time_complexity = 'O(1)'
+        else:
+            self.time_complexity = f'O(n^{self.max_loop_nesting})'
+
+        print(f"Estimated Time Complexity: {self.time_complexity}")
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print("Usage: python timecomplexity.py <python_file>")
+        sys.exit(1)
+
+    filename = sys.argv[1]
+
+    with open(filename, 'r') as f:
+        source = f.read()
+
+    tree = ast.parse(source)
+    analyzer = ComplexityAnalyzer()
+    analyzer.visit(tree)
+    analyzer.report()
